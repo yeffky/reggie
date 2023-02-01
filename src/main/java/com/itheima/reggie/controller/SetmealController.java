@@ -6,7 +6,6 @@ import com.itheima.reggie.common.R;
 import com.itheima.reggie.dto.SetmealDto;
 import com.itheima.reggie.entity.Category;
 import com.itheima.reggie.entity.Setmeal;
-import com.itheima.reggie.entity.SetmealDish;
 import com.itheima.reggie.service.CategoryService;
 import com.itheima.reggie.service.SetmealDishService;
 import com.itheima.reggie.service.SetmealService;
@@ -14,6 +13,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -37,6 +38,7 @@ public class SetmealController {
      * @return
      */
     @PostMapping
+    @CacheEvict(value = "setmealCache", allEntries = true)
     public R<String> save(@RequestBody SetmealDto setmealDto) {
 
         log.info("套餐信息：{}", setmealDto);
@@ -90,6 +92,7 @@ public class SetmealController {
      * @return
      */
     @DeleteMapping
+    @CacheEvict(value = "setmealCache", allEntries = true)
     public R<String> delete(@RequestParam List<Long> ids) {
         log.info("ids:{}", ids);
         setmealService.removeWithDish(ids);
@@ -104,25 +107,26 @@ public class SetmealController {
     }
 
     @GetMapping("/list")
-    public R<List<SetmealDto>> list(Long categoryId) {
+    @Cacheable(value = "setmealCache", key = "#setmeal.getCategoryId() + '_' + #setmeal.status")
+    public R<List<Setmeal>> list(Setmeal setmeal) {
         LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(Setmeal::getCategoryId, categoryId);
+        queryWrapper.eq(Setmeal::getCategoryId, setmeal.getCategoryId());
         queryWrapper.eq(Setmeal::getStatus, 1);
         queryWrapper.orderByDesc(Setmeal::getUpdateTime);
         List<Setmeal> setmeals = setmealService.list(queryWrapper);
-
-        List<SetmealDto> setmealDtos = setmeals.stream().map(item -> {
-            SetmealDto setmealDto = new SetmealDto();
-            BeanUtils.copyProperties(item, setmealDto);
-            LambdaQueryWrapper<SetmealDish> wrapper = new LambdaQueryWrapper();
-            wrapper.eq(SetmealDish::getSetmealId, item.getId());
-            List<SetmealDish> setmealDishList = setmealDishService.list(wrapper);
-            setmealDto.setSetmealDishes(setmealDishList);
-            Category category = categoryService.getById(item.getCategoryId());
-            setmealDto.setCategoryName(category.getName());
-            return setmealDto;
-        }).collect(Collectors.toList());
-
-        return R.success(setmealDtos);
+        return R.success(setmeals);
+//        List<SetmealDto> setmealDtos = setmeals.stream().map(item -> {
+//            SetmealDto setmealDto = new SetmealDto();
+//            BeanUtils.copyProperties(item, setmealDto);
+//            LambdaQueryWrapper<SetmealDish> wrapper = new LambdaQueryWrapper();
+//            wrapper.eq(SetmealDish::getSetmealId, item.getId());
+//            List<SetmealDish> setmealDishList = setmealDishService.list(wrapper);
+//            setmealDto.setSetmealDishes(setmealDishList);
+//            Category category = categoryService.getById(item.getCategoryId());
+//            setmealDto.setCategoryName(category.getName());
+//            return setmealDto;
+//        }).collect(Collectors.toList());
+//
+//        return R.success(setmealDtos);
     }
 }
